@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 import sys
+from scipy.spatial.transform import Rotation as R
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
@@ -14,34 +15,51 @@ except ImportError as e:
     logging.error("ensure utils/io.py is accessible")
     sys.exit(1)
 
-# IMPORT YOUR METHOD BELOW
-# from method.your_method import your_method_function  # replace with your actual method function
 
-# this is one provided example
-from method.max_visibility import predict_pose, filter_points_by_error
-
-############
-
-
-## IMPORTANT:
-# This is the wrapper function that will be called by the benchmark script.
-# You should not change the function signature or the input/output format.
-# Instead, implement your method logic inside the predict_best_angles_per_pose function.
+from method.your_method import generate_smooth_and_aware_orientations
 
 
 def predict_best_angles_per_pose(input: dict):
+    """
+    Compute the best viewing direction per waypoint.
+    ...
+    """
+    waypoints = input["waypoints"]
+    points3D = input["points3D"]
 
-    best_angles = []  # store best angles for each waypoint
 
-    ## Make Changes Below This Line
-    filtered_points = filter_points_by_error(input["points3D"])
-    best_angles = dict.fromkeys(input["waypoints"])
-    for key, waypoint in input["waypoints"].items():
-        quat_cw = predict_pose(waypoint, key, filtered_points)
-        best_angles[key] = quat_cw
-    ## Make Changes Above This Line
+    # -- Predictive Smoothing Controls --
+    # How many waypoints ahead the camera should look to anticipate turns.
+    # A larger number creates smoother, longer, more sweeping turns.
+    smoothing_window = 5
+
+    # How much influence future path segments have.
+    # Value is between 0 and 1. Closer to 1 gives more weight to the immediate
+    # path. Closer to 0 gives more weight to upcoming turns, making it smoother.
+    smoothing_strength = 0.6
+
+    # -- Obstacle Detection Controls (from before) --
+    # The width of the corridor for detecting obstacles.
+    path_clearance = 0.4
+
+    # The maximum angle the camera will tilt down when an obstacle is detected.
+    max_tilt_angle = 30.0
+    
+    # The vertical tolerance to ignore points on the floor or ceiling.
+    vertical_tolerance = 0.75
+
+
+
+    best_angles = generate_smooth_and_aware_orientations(
+        waypoints,
+        points3D,
+        path_clearance=path_clearance,
+        vertical_tolerance=vertical_tolerance,
+        max_tilt_angle=max_tilt_angle,
+        smoothing_window=smoothing_window,
+        smoothing_strength=smoothing_strength,
+    )
     return best_angles
-
 
 def main():
     parser = argparse.ArgumentParser(
